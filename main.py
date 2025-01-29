@@ -37,18 +37,40 @@ def generate_dummy_data(start_date='2023-01-01', end_date='2023-12-31'):
         orders_per_interval = int(specs['daily_orders'] * (15 / (24 * 60)))
         
         # Generate base data for this product
-        product_data = pd.DataFrame({
+        base_df = pd.DataFrame({
             'timestamp': dates,
-            'product_name': product_name,
-            'amount_usd': np.random.normal(
-                specs['price_mean'], 
-                specs['price_std'], 
-                len(dates)
-            ).clip(specs['price_mean'] * 0.7, specs['price_mean'] * 1.3)  # Clip prices to reasonable range
+            'product_name': product_name
         })
         
+        # Add daily trend component (slight increase during business hours)
+        hour_effect = np.sin(2 * np.pi * base_df['timestamp'].dt.hour / 24) * 0.02
+        
+        # Add weekly trend (slightly higher prices on weekends)
+        weekend_effect = (base_df['timestamp'].dt.dayofweek >= 5).astype(float) * 0.015
+        
+        # Add monthly trend (slight increase towards end of month)
+        monthly_effect = (base_df['timestamp'].dt.day / 31) * 0.01
+        
+        # Combine all effects and add random noise
+        total_effect = (1 + hour_effect + weekend_effect + monthly_effect)
+        random_noise = np.random.normal(0, 0.005, len(base_df))  # 0.5% random noise
+        
+        # Calculate final prices
+        base_df['amount_usd'] = (
+            specs['price_mean'] * 
+            total_effect * 
+            (1 + random_noise) + 
+            np.random.normal(0, specs['price_std'] * 0.1, len(base_df))
+        )
+        
+        # Clip prices to reasonable range (allowing more variation than before)
+        base_df['amount_usd'] = base_df['amount_usd'].clip(
+            specs['price_mean'] * 0.85,  # Allow 15% decrease
+            specs['price_mean'] * 1.15   # Allow 15% increase
+        )
+        
         # Sample rows based on expected order volume
-        product_data = product_data.sample(n=orders_per_interval * len(dates), replace=True)
+        product_data = base_df.sample(n=orders_per_interval * len(dates), replace=True)
         all_data.append(product_data)
 
     df = pd.concat(all_data, ignore_index=True)
