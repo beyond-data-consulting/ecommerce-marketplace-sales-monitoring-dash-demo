@@ -69,6 +69,13 @@ def generate_dummy_data(start_date='2023-01-01', end_date='2023-12-31'):
             specs['price_mean'] * 1.15   # Allow 15% increase
         )
         
+        # Add is_express column (20% chance of being express)
+        base_df['is_express'] = np.random.choice(
+            [True, False], 
+            size=len(base_df), 
+            p=[0.2, 0.8]
+        )
+        
         # Sample rows based on expected order volume
         product_data = base_df.sample(n=orders_per_interval * len(dates), replace=True)
         all_data.append(product_data)
@@ -171,8 +178,8 @@ st.markdown("---")
 # Remove sidebar filters section entirely
 filtered_df = df.copy(deep=True)
 
-# Create two columns for charts
-col1, col2 = st.columns(2)
+# Create three columns for charts
+col1, col2, col3 = st.columns([4, 4, 2])  # Adjust width ratios
 
 with col1:
     st.subheader("Sales Volume by Product")
@@ -226,28 +233,44 @@ with col2:
 
     st.plotly_chart(fig_candlestick, use_container_width=True)
 
-# Add summary metrics
-st.markdown("---")
-st.subheader("Summary Metrics")
-
-# Create metrics row
-metric1, metric2, metric3, metric4 = st.columns(4)
-
-with metric1:
-    total_sales = filtered_df['amount_usd'].sum()
-    st.metric("Total Sales", f"${total_sales:,.2f}")
-
-with metric2:
-    avg_daily_sales = filtered_df.groupby(filtered_df['timestamp'].dt.date)['amount_usd'].sum().mean()
-    st.metric("Avg Daily Sales", f"${avg_daily_sales:,.2f}")
-
-with metric3:
-    top_product = filtered_df.groupby('product_name')['amount_usd'].sum().idxmax()
-    st.metric("Top Selling Product", f"Product {top_product}")
-
-with metric4:
-    total_transactions = len(filtered_df)
-    st.metric("Total Transactions", f"{total_transactions:,}")
+with col3:
+    st.subheader("Past 24 Hours")
+    
+    # Calculate last 24 hours statistics using the max timestamp in our data
+    max_timestamp = filtered_df['timestamp'].max()
+    last_24h = max_timestamp - timedelta(days=1)
+    last_24h_data = filtered_df[filtered_df['timestamp'] >= last_24h]
+    
+    # Prepare summary table data
+    summary_stats = last_24h_data.groupby('product_name').agg({
+        'amount_usd': 'mean',
+        'product_name': 'size',
+        'is_express': 'sum'  # Sum of True values gives us count of express orders
+    }).rename(columns={
+        'amount_usd': 'avg_price',
+        'product_name': 'num_orders',
+        'is_express': 'express_orders'
+    }).reset_index()
+    
+    # Sort by number of orders descending
+    summary_stats = summary_stats.sort_values('num_orders', ascending=False)
+    
+    # Format the numbers
+    summary_stats['avg_price'] = summary_stats['avg_price'].round(2).apply(lambda x: f"${x}")
+    summary_stats['num_orders'] = summary_stats['num_orders'].apply(lambda x: f"{x:,}")
+    summary_stats['express_orders'] = summary_stats['express_orders'].astype(int).apply(lambda x: f"{x:,}")
+    
+    # Display as a clean table
+    st.dataframe(
+        summary_stats,
+        column_config={
+            "product_name": "Product",
+            "avg_price": "Avg Price",
+            "num_orders": "Orders",
+            "express_orders": "Express Orders"
+        },
+        hide_index=True
+    )
 
 # Requirements to run:
 # pip install streamlit pandas numpy plotly
