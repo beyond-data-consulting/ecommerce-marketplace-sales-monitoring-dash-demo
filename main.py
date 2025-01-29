@@ -16,7 +16,7 @@ def prepare_sales_volume_data(df):
     ).size().reset_index(name='count')
 
 # Generate dummy data
-def generate_dummy_data(start_date='2023-01-01', end_date='2023-12-31'):
+def generate_dummy_data(start_date='2023-01-01', end_date='2024-03-31'):
     # Create date range (every 15 minutes instead of hourly)
     dates = pd.date_range(start=start_date, end=end_date, freq='15min')
 
@@ -252,14 +252,12 @@ with col1:
 with col2:
     st.subheader("Product Price Analysis")
 
-    # Single select for candlestick
-    selected_product = st.selectbox(
-        "Select Product",
-        options=sorted(df['product_name'].unique())
-    )
+    # Initialize session state if not exists
+    if 'selected_product' not in st.session_state:
+        st.session_state.selected_product = sorted(df['product_name'].unique())[0]
 
-    # Prepare data for candlestick
-    daily_prices = df[df['product_name'] == selected_product].groupby(
+    # Create candlestick chart
+    daily_prices = df[df['product_name'] == st.session_state.selected_product].groupby(
         df['timestamp'].dt.date
     ).agg({
         'amount_usd': ['first', 'max', 'min', 'last']
@@ -267,7 +265,6 @@ with col2:
 
     daily_prices.columns = ['date', 'open', 'high', 'low', 'close']
 
-    # Create candlestick chart
     fig_candlestick = go.Figure(data=[go.Candlestick(
         x=daily_prices['date'],
         open=daily_prices['open'],
@@ -277,12 +274,20 @@ with col2:
     )])
 
     fig_candlestick.update_layout(
-        title=f'Daily Price Analysis - {selected_product}',
+        title=f'Daily Price Analysis - {st.session_state.selected_product}',
         xaxis_title='Date',
         yaxis_title='Price (USD)'
     )
 
     st.plotly_chart(fig_candlestick, use_container_width=True)
+
+    # Single select for candlestick - now below the chart
+    selected_product = st.selectbox(
+        "Select Product",
+        options=sorted(df['product_name'].unique()),
+        key="product_selector",
+        on_change=lambda: setattr(st.session_state, 'selected_product', st.session_state.product_selector)
+    )
 
 with col3:
     st.subheader("Past 24 Hours")
@@ -296,12 +301,14 @@ with col3:
     summary_stats = last_24h_data.groupby('product_name').agg({
         'amount_usd': 'mean',
         'product_name': 'size',
-        'is_express': 'sum'  # Sum of True values gives us count of express orders
-    }).rename(columns={
-        'amount_usd': 'avg_price',
-        'product_name': 'num_orders',
-        'is_express': 'express_orders'
+        'is_express': ['sum', 'size']  # Get both sum and count for percentage calculation
     }).reset_index()
+    
+    # Flatten column names
+    summary_stats.columns = ['product_name', 'avg_price', 'num_orders', 'express_orders', 'total_orders']
+    
+    # Calculate express percentage
+    summary_stats['express_pct'] = (summary_stats['express_orders'] / summary_stats['total_orders'] * 100)
     
     # Sort by number of orders descending
     summary_stats = summary_stats.sort_values('num_orders', ascending=False)
@@ -309,16 +316,16 @@ with col3:
     # Format the numbers
     summary_stats['avg_price'] = summary_stats['avg_price'].round(2).apply(lambda x: f"${x}")
     summary_stats['num_orders'] = summary_stats['num_orders'].apply(lambda x: f"{x:,}")
-    summary_stats['express_orders'] = summary_stats['express_orders'].astype(int).apply(lambda x: f"{x:,}")
+    summary_stats['express_pct'] = summary_stats['express_pct'].round(1).apply(lambda x: f"{x}%")
     
     # Display as a clean table
     st.dataframe(
-        summary_stats,
+        summary_stats[['product_name', 'avg_price', 'num_orders', 'express_pct']],  # Select only columns we want to show
         column_config={
             "product_name": "Product",
             "avg_price": "Avg Price",
             "num_orders": "Orders",
-            "express_orders": "Express Orders"
+            "express_pct": "% Express"
         },
         hide_index=True
     )
