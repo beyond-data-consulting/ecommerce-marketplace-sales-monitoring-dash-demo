@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 # Set page config
-st.set_page_config(page_title="Sales Dashboard", layout="wide")
+st.set_page_config(page_title="E-Commerce Marketplace Sales Monitoring", layout="wide")
 
 # Add this near the top of the file, after the imports
 @st.cache_data
