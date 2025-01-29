@@ -11,12 +11,29 @@ st.set_page_config(page_title="E-Commerce Marketplace Sales Monitoring", layout=
 # Add this near the top of the file, after the imports
 @st.cache_data
 def prepare_sales_volume_data(df):
-    return df.groupby(
+    # Get weekly data
+    weekly_data = df.groupby(
         [pd.Grouper(key='timestamp', freq='W-MON'), 'product_name']
     ).size().reset_index(name='count')
+    
+    # Skip the first and last partial weeks
+    first_full_week = weekly_data['timestamp'].min() + pd.Timedelta(days=7)
+    last_full_week = weekly_data['timestamp'].max() - pd.Timedelta(days=7)
+    
+    weekly_data = weekly_data[
+        (weekly_data['timestamp'] >= first_full_week) &
+        (weekly_data['timestamp'] <= last_full_week)
+    ]
+    
+    return weekly_data
 
 # Generate dummy data
 def generate_dummy_data(start_date='2023-01-01', end_date='2024-03-31'):
+    # Adjust end_date to the next Sunday
+    end = pd.Timestamp(end_date)
+    days_to_sunday = (6 - end.dayofweek) % 7  # 6 is Sunday
+    end_date = (end + pd.Timedelta(days=days_to_sunday)).strftime('%Y-%m-%d')
+    
     # Create date range (every 15 minutes instead of hourly)
     dates = pd.date_range(start=start_date, end=end_date, freq='15min')
 
