@@ -56,6 +56,50 @@ def generate_dummy_data(start_date='2023-01-01', end_date='2023-12-31'):
     # Create duplicate orders for seasonal patterns
     extra_orders = []
     
+    # Seasonal trends
+    # Hoodies: September through January
+    hoodie_mask = (df['product_name'] == 'Hoodie') & (
+        ((df['timestamp'].dt.month >= 9) & (df['timestamp'].dt.month <= 12)) |
+        (df['timestamp'].dt.month == 1)
+    )
+    hoodie_seasonal = df[hoodie_mask].copy()
+    for month in [9, 10, 11, 12, 1]:
+        month_mask = hoodie_seasonal['timestamp'].dt.month == month
+        # Peak in November/December (100% more orders), ramping up from September (20%) and down in January (20%)
+        if month in [11, 12]:
+            duplicate_factor = 1.0  # 100% more orders
+        elif month in [10]:
+            duplicate_factor = 0.6  # 60% more orders
+        else:  # September and January
+            duplicate_factor = 0.2  # 20% more orders
+        
+        n_duplicates = int(len(hoodie_seasonal[month_mask]) * duplicate_factor)
+        if n_duplicates > 0:
+            duplicates = hoodie_seasonal[month_mask].sample(n=n_duplicates, replace=True)
+            duplicates['timestamp'] += pd.Timedelta(minutes=np.random.randint(1, 10))
+            extra_orders.append(duplicates)
+
+    # T-Shirts: March through June
+    tshirt_mask = (df['product_name'] == 'T-Shirt') & (
+        (df['timestamp'].dt.month >= 3) & (df['timestamp'].dt.month <= 6)
+    )
+    tshirt_seasonal = df[tshirt_mask].copy()
+    for month in [3, 4, 5, 6]:
+        month_mask = tshirt_seasonal['timestamp'].dt.month == month
+        # Peak in May (80% more orders), ramping up from March and down in June
+        if month == 5:
+            duplicate_factor = 0.8  # 80% more orders
+        elif month == 4:
+            duplicate_factor = 0.6  # 60% more orders
+        else:  # March and June
+            duplicate_factor = 0.3  # 30% more orders
+        
+        n_duplicates = int(len(tshirt_seasonal[month_mask]) * duplicate_factor)
+        if n_duplicates > 0:
+            duplicates = tshirt_seasonal[month_mask].sample(n=n_duplicates, replace=True)
+            duplicates['timestamp'] += pd.Timedelta(minutes=np.random.randint(1, 10))
+            extra_orders.append(duplicates)
+
     # Christmas build-up (December 1-25)
     christmas_mask = (df['timestamp'].dt.month == 12) & (df['timestamp'].dt.day <= 25)
     christmas_df = df[christmas_mask].copy()
