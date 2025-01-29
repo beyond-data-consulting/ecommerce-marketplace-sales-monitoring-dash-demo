@@ -240,7 +240,7 @@ def get_cached_data():
 df = get_cached_data()  # Instead of df = generate_dummy_data()
 
 # Dashboard title
-st.title("📊 Sales Dashboard")
+st.title("📊 E-Commerce Marketplace Sales Dashboard")
 st.markdown("---")
 
 # Remove sidebar filters section entirely
