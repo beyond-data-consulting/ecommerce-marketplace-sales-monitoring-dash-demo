@@ -26,15 +26,16 @@ def generate_dummy_data(start_date='2023-01-01', end_date='2023-12-31'):
         'T-Shirt': {'price_mean': 25, 'price_std': 5, 'daily_orders': 200},
         'Jeans': {'price_mean': 80, 'price_std': 12, 'daily_orders': 60},
         'Socks': {'price_mean': 12, 'price_std': 2, 'daily_orders': 150},
-        'Jacket': {'price_mean': 120, 'price_std': 15, 'daily_orders': 40}
+        'Jacket': {'price_mean': 120, 'price_std': 15, 'daily_orders': 20}
     }
     
     all_data = []
     
     # Generate data for each product
     for product_name, specs in products.items():
+        print(product_name)
         # Calculate number of orders per 15 minutes
-        orders_per_interval = int(specs['daily_orders'] * (15 / (24 * 60)))
+        orders_per_interval = max(1, int(specs['daily_orders'] * (15 / (24 * 60))))
         
         # Generate base data for this product
         base_df = pd.DataFrame({
@@ -81,6 +82,7 @@ def generate_dummy_data(start_date='2023-01-01', end_date='2023-12-31'):
         all_data.append(product_data)
 
     df = pd.concat(all_data, ignore_index=True)
+    print(df['product_name'].value_counts())
     
     # Create duplicate orders for seasonal patterns
     extra_orders = []
@@ -117,15 +119,63 @@ def generate_dummy_data(start_date='2023-01-01', end_date='2023-12-31'):
         month_mask = tshirt_seasonal['timestamp'].dt.month == month
         # Peak in May (80% more orders), ramping up from March and down in June
         if month == 5:
-            duplicate_factor = 0.8  # 80% more orders
+            duplicate_factor = 0.3  # 80% more orders
         elif month == 4:
-            duplicate_factor = 0.6  # 60% more orders
+            duplicate_factor = 0.2  # 60% more orders
         else:  # March and June
-            duplicate_factor = 0.3  # 30% more orders
+            duplicate_factor = 0.15  # 30% more orders
         
         n_duplicates = int(len(tshirt_seasonal[month_mask]) * duplicate_factor)
         if n_duplicates > 0:
             duplicates = tshirt_seasonal[month_mask].sample(n=n_duplicates, replace=True)
+            duplicates['timestamp'] += pd.Timedelta(minutes=np.random.randint(1, 10))
+            extra_orders.append(duplicates)
+
+    # Jackets: August through February
+    jacket_mask = (df['product_name'] == 'Jacket') & (
+        ((df['timestamp'].dt.month >= 8) & (df['timestamp'].dt.month <= 12)) |
+        (df['timestamp'].dt.month <= 2)
+    )
+    jacket_seasonal = df[jacket_mask].copy()
+    for month in [8, 9, 10, 11, 12, 1, 2]:
+        month_mask = jacket_seasonal['timestamp'].dt.month == month
+        # Peak in December/January (120% more orders), ramping up from August (30%) and down in February (30%)
+        if month in [12, 1]:
+            duplicate_factor = 1.2  # 120% more orders
+        elif month in [11, 2]:
+            duplicate_factor = 0.8  # 80% more orders
+        elif month in [10]:
+            duplicate_factor = 0.6  # 60% more orders
+        else:  # August, September, February
+            duplicate_factor = 0.3  # 30% more orders
+        
+        n_duplicates = int(len(jacket_seasonal[month_mask]) * duplicate_factor)
+        if n_duplicates > 0:
+            duplicates = jacket_seasonal[month_mask].sample(n=n_duplicates, replace=True)
+            duplicates['timestamp'] += pd.Timedelta(minutes=np.random.randint(1, 10))
+            extra_orders.append(duplicates)
+
+    # Jeans: August through May
+    jeans_mask = (df['product_name'] == 'Jeans') & (
+        ((df['timestamp'].dt.month >= 8) & (df['timestamp'].dt.month <= 12)) |
+        (df['timestamp'].dt.month <= 5)
+    )
+    jeans_seasonal = df[jeans_mask].copy()
+    for month in [8, 9, 10, 11, 12, 1, 2, 3, 4, 5]:
+        month_mask = jeans_seasonal['timestamp'].dt.month == month
+        # Peak in October/November (90% more orders), with gradual ramp up and down
+        if month in [10, 11]:
+            duplicate_factor = 0.9  # 90% more orders
+        elif month in [9, 12]:
+            duplicate_factor = 0.6  # 60% more orders
+        elif month in [8, 1]:
+            duplicate_factor = 0.4  # 40% more orders
+        else:  # February through May
+            duplicate_factor = 0.2  # 20% more orders
+        
+        n_duplicates = int(len(jeans_seasonal[month_mask]) * duplicate_factor)
+        if n_duplicates > 0:
+            duplicates = jeans_seasonal[month_mask].sample(n=n_duplicates, replace=True)
             duplicates['timestamp'] += pd.Timedelta(minutes=np.random.randint(1, 10))
             extra_orders.append(duplicates)
 
@@ -159,6 +209,7 @@ def generate_dummy_data(start_date='2023-01-01', end_date='2023-12-31'):
     
     # Sort by timestamp
     df = df.sort_values('timestamp')
+    print(df['product_name'].value_counts())
     
     return df
 
