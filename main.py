@@ -16,13 +16,13 @@ def prepare_sales_volume_data(df):
         [pd.Grouper(key='timestamp', freq='W-MON'), 'product_name']
     ).size().reset_index(name='count')
     
-    # Skip the first and last partial weeks
+    # Skip the first and last weeks
     first_full_week = weekly_data['timestamp'].min() + pd.Timedelta(days=7)
     last_full_week = weekly_data['timestamp'].max() - pd.Timedelta(days=7)
     
     weekly_data = weekly_data[
         (weekly_data['timestamp'] >= first_full_week) &
-        (weekly_data['timestamp'] <= last_full_week)
+        (weekly_data['timestamp'] < last_full_week)  # Changed <= to < to exclude last week
     ]
     
     return weekly_data
